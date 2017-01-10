@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "name": "BulletPhysics",
+            "includePath": [
+                "./BulletPhysics/src/"
+            ]
+        }
+    ]
+}
