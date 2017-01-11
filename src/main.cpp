@@ -1,6 +1,11 @@
 #include <iostream>
+#include <chrono>
+#include <thread>
 
 #include "btBulletDynamicsCommon.h"
+
+const btScalar FRAMERATE( 60. );
+const btScalar FIXED_TIME_STEP( btScalar( 1. ) / FRAMERATE );
 
 int main (void)
 {
@@ -37,14 +42,42 @@ int main (void)
         btRigidBody* fallRigidBody = new btRigidBody(fallRigidBodyCI);
         dynamicsWorld->addRigidBody(fallRigidBody);
 
+        const uint64_t programDuration = 10U; // Simulate for 10 sec.
+        std::chrono::system_clock::time_point lastCallTime;
+        for( uint64_t frame = 0; frame < programDuration * FRAMERATE; frame += 1 ) {
 
-        for (int i = 0; i < 300; i++) {
-                dynamicsWorld->stepSimulation(1 / 60.f, 10);
+                auto startTime = std::chrono::system_clock::now();
+
+                float_t         timePassedSinceLastCall;
+                const btScalar  maxTimeSteps( 10 );
+
+                if( frame == 0 ) {
+                        timePassedSinceLastCall = 1. / FRAMERATE;
+                } else {
+                        auto deltaTime =
+                                std::chrono::duration_cast< std::chrono::milliseconds >( startTime - lastCallTime );
+                        timePassedSinceLastCall = deltaTime.count() / 1000. ;
+                }
+
+                lastCallTime = std::chrono::system_clock::now();
+
+                dynamicsWorld->stepSimulation( timePassedSinceLastCall,
+                                                maxTimeSteps,
+                                                FIXED_TIME_STEP );
 
                 btTransform trans;
-                fallRigidBody->getMotionState()->getWorldTransform(trans);
+                fallRigidBody->getMotionState()->getWorldTransform( trans );
 
-                std::cout << "sphere height: " << trans.getOrigin().getY() << std::endl;
+                if( frame % 60U == 0 ) {
+                        std::cout << "Frame( " << frame << " )" << std::endl
+                                << "Sphere Position( " << trans.getOrigin().getX() << ", "
+                                                        << trans.getOrigin().getY() << ", "
+                                                        << trans.getOrigin().getZ() << " )" << std::endl << std::endl;
+                }
+
+                auto currentTime = std::chrono::system_clock::now();
+                auto goalTime   = startTime + std::chrono::milliseconds( (long long)( 1000 / FRAMERATE ) );
+                std::this_thread::sleep_for( std::chrono::duration_cast< std::chrono::milliseconds >( goalTime - currentTime) );
         }
 
         dynamicsWorld->removeRigidBody(fallRigidBody);
