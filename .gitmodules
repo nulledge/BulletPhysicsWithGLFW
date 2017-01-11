@@ -1,3 +1,6 @@
 [submodule "BulletPhysics"]
 	path = BulletPhysics
 	url = https://github.com/bulletphysics/bullet3.git
+[submodule "glfw"]
+	path = glfw
+	url = https://github.com/glfw/glfw.git
