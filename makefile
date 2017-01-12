@@ -1,4 +1,6 @@
-CC=g++
+CPPC=g++
+CC=gcc
+MKDIR=mkdir
 OUTPUT=exe.out
 
 
@@ -37,14 +39,21 @@ LINMATH=$(GLFW)/deps
 LINMATH_INC_PATH=$(LINMATH)
 
 
+BIN_PATH=bin
 SRC_PATH=src
 OBJ_PATH=obj
 
-all : $(OBJ_PATH)/main.o $(OBJ_PATH)/glad.o
-	$(CC) $(OBJ_PATH)/main.o $(OBJ_PATH)/glad.o -o $(OUTPUT) $(BULLET_PHYSICS_DEPENDENCY) $(GLFW_DEPENDENCY) -I$(BULLET_INC_PATH) -I$(GLFW_INC_PATH) -I$(GLAD_INC_PATH) -I$(LINMATH_INC_PATH)
+final : $(OBJ_PATH)/main.o $(OBJ_PATH)/glad.o $(BIN_PATH)
+	$(CPPC) $(OBJ_PATH)/main.o $(OBJ_PATH)/glad.o -o $(BIN_PATH)/$(OUTPUT) $(BULLET_PHYSICS_DEPENDENCY) $(GLFW_DEPENDENCY) -I$(BULLET_INC_PATH) -I$(GLFW_INC_PATH) -I$(GLAD_INC_PATH) -I$(LINMATH_INC_PATH)
 
-$(OBJ_PATH)/main.o : $(SRC_PATH)/main.cpp
-	$(CC) -c $(SRC_PATH)/main.cpp -o $(OBJ_PATH)/main.o -I$(BULLET_INC_PATH) -I$(GLFW_INC_PATH) -I$(GLAD_INC_PATH) -I$(LINMATH_INC_PATH)
+$(OBJ_PATH)/main.o : $(SRC_PATH)/main.cpp $(OBJ_PATH)
+	$(CPPC) -c $(SRC_PATH)/main.cpp -o $(OBJ_PATH)/main.o -I$(BULLET_INC_PATH) -I$(GLFW_INC_PATH) -I$(GLAD_INC_PATH) -I$(LINMATH_INC_PATH)
 
-$(OBJ_PATH)/glad.o : $(GLAD_SRC_PATH)/glad.c
+$(OBJ_PATH)/glad.o : $(GLAD_SRC_PATH)/glad.c $(OBJ_PATH)
 	$(CC) -c $(GLAD_SRC_PATH)/glad.c -o $(OBJ_PATH)/glad.o -I$(GLAD_INC_PATH)
+
+$(OBJ_PATH) :
+	$(MKDIR) $(OBJ_PATH)
+
+$(BIN_PATH) :
+	$(MKDIR) $(BIN_PATH)
