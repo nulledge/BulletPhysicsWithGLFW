@@ -6,23 +6,170 @@
 #include <cstdarg>
 
 static const char* vertex_shader_text =
-        "attribute vec4 in_position;                            "
+        "#version 330 core                                      "
+        "in vec2 in_position;                                   "
+        "in vec4 in_color;                                      "
+        "out vec4 o_color;                                      "
         "void main()                                            "
         "{                                                      "
-        "       gl_Position = in_position;                      "
+        "       gl_Position = vec4( in_position, 0.0, 1.0 );    "
+        "       o_color = in_color;                             "
         "}                                                      ";
 static const char* fragment_shader_text =
-        "uniform vec3 uniform_color;                            "
+        "#version 330 core                                      "
+        "in vec4 o_color;                                       "
+        "layout( location = 0 ) out vec4 o_fragColor;           "
         "void main()                                            "
         "{                                                      "
-        "       gl_FragColor = vec4 ( uniform_color, 1.0 );     "
+        "       o_fragColor = vec4( o_color );                  "
         "}                                                      ";
-
-static void error_callback( int error, const char* description )
+static struct Vertex
 {
+        float x, y;
+        float r, g, b, a;
+} vertexes[] = {
+                0.0f, 0.5f, 1.f, 0.f, 0.f, 1.f,
+        -0.5f,-0.5f, 0.f, 1.f, 0.f, 1.f,
+                0.5f,-0.5f, 0.f, 0.f, 1.f, 1.f
+};
+
+static void error_callback( int error, const char* description );
+static void key_callback( GLFWwindow* window,
+        int key, int scancode, int action, int mods );
+static void resize_callback( GLFWwindow* window, int width, int height );
+
+GLuint LoadShader( GLenum type, const char* shaderCode );
+GLuint LinkProgram( GLuint vertexShader, GLuint fragmentShader );
+
+#define CLEAR_COLOR     1.f, 1.f, 1.f, 1.f
+
+int main( void )
+{
+        // Default window config.
+        const GLuint    WINDOW_WIDTH    = 640U;
+        const GLuint    WINDOW_HEIGHT   = 480U;
+        const char*     WINDOW_TITLE    = "untitled";
+        GLFWmonitor*    FULLSCREEN      = NULL;
+        GLFWwindow*     SHARE_CONTEXT   = NULL;
+
+        // Set default error-callback.
+        glfwSetErrorCallback( error_callback );
+
+        // Initialize glfw.
+        // IF SUCCESS, YOU MUST CALL glfwTerminate() BEFORE EXIT.
+        if( glfwInit() == GLFW_FALSE )
+                exit( EXIT_FAILURE ); // Initialize failed.
+
+        // Client use openGL, neither openGL ES nor Vulkan.
+        glfwWindowHint( GLFW_CLIENT_API, GLFW_OPENGL_API );
+        // mac OS supports openGL API version 3.2 and above.
+        // Specify client API version as 3.2.
+        // However GLFW_CONTEXT_VERSION_MAJOR and GLFW_CONTEXT_VERSION_MINOR are
+        // not hard contraints, API version above 3.2 could be selected.
+        // A creation will fail if version below 3.2 is selected.
+        glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 3 );
+        glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 2 );
+        // mas OS supports ONLY forward-compatible core profile context
+        // for API version 3.2 and above.
+        glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
+        glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
+
+        // Create window.
+        GLFWwindow* window = glfwCreateWindow(
+                                WINDOW_WIDTH, WINDOW_HEIGHT,
+                                WINDOW_TITLE,
+                                FULLSCREEN, SHARE_CONTEXT
+                                );
+        if( window == NULL) { // Create failed.
+                glfwTerminate();
+                exit( EXIT_FAILURE );
+        }
+        // Bind callbacks.
+        glfwSetKeyCallback( window, key_callback );
+        glfwSetWindowSizeCallback( window, resize_callback );
+        
+        // This thread have a control over the window.
+        glfwMakeContextCurrent( window );
+        gladLoadGLLoader( (GLADloadproc) glfwGetProcAddress );
+        glfwSwapInterval( 1 );
+
+        // Shader compile.
+        GLuint vertex_shader
+                = LoadShader( GL_VERTEX_SHADER, vertex_shader_text );
+        GLuint fragment_shader
+                = LoadShader( GL_FRAGMENT_SHADER, fragment_shader_text );
+
+        // Program link.
+        // openGL ES 3.0 require one and only one vertex and fragment shader.
+        GLuint program = LinkProgram( vertex_shader, fragment_shader );
+
+        // Run program.
+        glUseProgram( program );
+
+        // Dissolve attribute location.
+        GLuint posLoc = glGetAttribLocation( program, "in_position" );  // loc 0
+        GLuint colLoc = glGetAttribLocation( program, "in_color" );     // loc 1
+
+        GLuint VAOs[1];
+        GLuint VBOs[1];
+
+        // Create and bind VAO.
+        glGenVertexArrays( 1, VAOs );
+        glBindVertexArray( VAOs[ 0 ] );
+
+        // Create and bind VBO.
+        glGenBuffers( 1, VBOs );
+        glBindBuffer( GL_ARRAY_BUFFER, VBOs[ 0 ] );
+        glBufferData( GL_ARRAY_BUFFER, sizeof(vertexes), vertexes, GL_STATIC_DRAW );
+
+        // Mapping VBO and attribute location of in_position.
+        glVertexAttribPointer( posLoc, 2, GL_FLOAT, GL_FALSE,
+                sizeof(Vertex), (GLvoid*) 0 );
+        glEnableVertexAttribArray( posLoc );
+
+        // Mapping VBO and attribute location of in_color.
+        glVertexAttribPointer( colLoc, 4, GL_FLOAT, GL_FALSE,
+                sizeof(Vertex), (GLvoid*)( sizeof(GL_FLOAT) * 2 ) );
+        glEnableVertexAttribArray( colLoc );
+
+        // Detach VBO and VAO.
+        glBindBuffer( GL_ARRAY_BUFFER, NULL );
+        glBindVertexArray( NULL );
+
+        // Run application.
+        while( glfwWindowShouldClose( window ) == GLFW_FALSE ) {
+                int width, height;
+                glfwGetFramebufferSize( window, &width, &height );
+                glViewport( 0, 0, width, height );
+                glClearColor( CLEAR_COLOR );
+                glClear( GL_COLOR_BUFFER_BIT );
+
+                // Draw here.
+                //=============================================================
+                glBindVertexArray( VAOs[ 0 ] );
+                glDrawArrays( GL_TRIANGLES, 0, 3 );
+                glBindVertexArray( NULL );
+                //=============================================================
+                glfwSwapBuffers( window );
+                glfwPollEvents();
+        }
+
+        // Destroy unuse objects.
+        glDeleteShader( vertex_shader );
+        glDeleteShader( fragment_shader );
+        glDeleteProgram( program );
+
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        exit( EXIT_SUCCESS );
+}
+
+
+static void error_callback( int error, const char* description ) {
         std::cout
                 << "Error: " << description << std::endl;
 }
+
 static void key_callback( GLFWwindow* window,
         int key, int scancode, int action, int mods )
 {
@@ -35,6 +182,12 @@ static void key_callback( GLFWwindow* window,
                 std::cout
                         << "Warning: Not implemented." << std::endl;
 }
+
+static void resize_callback( GLFWwindow* window, int width, int height ) {
+        std::cout
+                << "Log: Resized " << width << "*" << height << std::endl;
+}
+
 
 GLuint LoadShader( GLenum type, const char* shaderCode ) {
         GLuint shader;
@@ -71,7 +224,6 @@ GLuint LoadShader( GLenum type, const char* shaderCode ) {
         }
         return shader;
 }
-
 GLuint LinkProgram( GLuint vertexShader, GLuint fragmentShader ) {
         GLuint program;
         GLint linked;
@@ -107,212 +259,3 @@ GLuint LinkProgram( GLuint vertexShader, GLuint fragmentShader ) {
         }
         return program;
 }
-
-int main( void )
-{
-        // Default window config.
-        const GLuint    WINDOW_WIDTH    = 640U;
-        const GLuint    WINDOW_HEIGHT   = 480U;
-        const char*     WINDOW_TITLE    = "untitled";
-        GLFWmonitor*    FULLSCREEN      = NULL;
-        GLFWwindow*     SHARE_CONTEXT   = NULL;
-
-        // Set default error-callback.
-        glfwSetErrorCallback( error_callback );
-
-        // Initialize glfw.
-        // IF SUCCESS, YOU MUST CALL glfwTerminate() BEFORE EXIT.
-        if( glfwInit() == GLFW_FALSE )
-                exit( EXIT_FAILURE ); // Initialize failed.
-
-        // Client use openGL, neither openGL ES nor Vulkan.
-        glfwWindowHint( GLFW_CLIENT_API, GLFW_OPENGL_API );
-
-        // Create window.
-        GLFWwindow* window = glfwCreateWindow(
-                                WINDOW_WIDTH, WINDOW_HEIGHT,
-                                WINDOW_TITLE,
-                                FULLSCREEN, SHARE_CONTEXT
-                                );
-        if( window == NULL) { // Create failed.
-                glfwTerminate();
-                exit( EXIT_FAILURE );
-        }
-        glfwSetKeyCallback( window, key_callback ); // Bind key callback.
-        
-        // This thread have a control over the window.
-        glfwMakeContextCurrent( window );
-        gladLoadGLLoader( (GLADloadproc) glfwGetProcAddress );
-        glfwSwapInterval( 1 );
-
-        // Shader compile.
-        GLuint vertex_shader
-                = LoadShader( GL_VERTEX_SHADER, vertex_shader_text );
-        GLuint fragment_shader
-                = LoadShader( GL_FRAGMENT_SHADER, fragment_shader_text );
-
-        // Program link.
-        // openGL ES 3.0 require one and only one vertex and fragment shader.
-        GLuint program = LinkProgram( vertex_shader, fragment_shader );
-
-        // Run program.
-        glUseProgram( program );
-
-        // Triangle vertices to draw.
-        const GLfloat vertices[] = {     0.0f,  0.5f, 0.0f,
-                                        -0.5f, -0.5f, 0.0f,
-                                         0.5f, -0.5f, 0.0f };
-        // Triangle color to draw.
-        const float     r = 0.0f,
-                        g = 1.0f,
-                        b = 1.0f;
-
-        // Vertex shader attribute set.
-        GLuint positionLocation = glGetAttribLocation( program, "in_position" );
-        glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, vertices);
-        glEnableVertexAttribArray( positionLocation );
-
-        // Fragment shader uniform set.
-        GLuint colorLocation = glGetUniformLocation( program, "uniform_color" );
-        glUniform3f( colorLocation, r, g, b );
-
-        // Query all uniforms.
-        GLint uniformLen, uniformNameLen;
-        glGetProgramiv( program, GL_ACTIVE_UNIFORMS, &uniformLen );
-        glGetProgramiv( program, GL_ACTIVE_UNIFORM_MAX_LENGTH, &uniformNameLen );
-        for( GLuint index = 0U; index < uniformLen; index += 1U ) {
-                GLsizei length;
-                GLint size;
-                GLenum type;
-                GLchar* name;
-                glGetActiveUniform( program, index, uniformNameLen, &length, &size, &type, name );
-        }
-
-        // Run application.
-        while( glfwWindowShouldClose( window ) == GLFW_FALSE ) {
-                int width, height;
-                glfwGetFramebufferSize( window, &width, &height );
-                glViewport( 0, 0, width, height );
-                glClear( GL_COLOR_BUFFER_BIT );
-
-                glDrawArrays( GL_TRIANGLES, 0, 3 );
-                glfwSwapBuffers( window );
-                glfwPollEvents();
-        }
-
-        // Destroy unuse objects.
-        glDeleteShader( vertex_shader );
-        glDeleteShader( fragment_shader );
-        glDeleteProgram( program );
-
-        glfwDestroyWindow(window);
-        glfwTerminate();
-        exit( EXIT_SUCCESS );
-}
-
-/*#include <iostream>
-#include <chrono>
-#include <thread>
-
-#include "btBulletDynamicsCommon.h"
-#include "GLFW/glfw3.h"
-
-const btScalar FRAMERATE( 60. );
-const btScalar FIXED_TIME_STEP( btScalar( 1. ) / FRAMERATE );
-
-int main (void)
-{
-
-        btBroadphaseInterface* broadphase = new btDbvtBroadphase();
-
-        btDefaultCollisionConfiguration* collisionConfiguration = new btDefaultCollisionConfiguration();
-        btCollisionDispatcher* dispatcher = new btCollisionDispatcher(collisionConfiguration);
-
-        btSequentialImpulseConstraintSolver* solver = new btSequentialImpulseConstraintSolver;
-
-        btDiscreteDynamicsWorld* dynamicsWorld = new btDiscreteDynamicsWorld(dispatcher, broadphase, solver, collisionConfiguration);
-
-        dynamicsWorld->setGravity(btVector3(0, -10, 0));
-
-
-        btCollisionShape* groundShape = new btStaticPlaneShape(btVector3(0, 1, 0), 1);
-
-        btCollisionShape* fallShape = new btSphereShape(1);
-
-
-        btDefaultMotionState* groundMotionState = new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, -1, 0)));
-        btRigidBody::btRigidBodyConstructionInfo
-                groundRigidBodyCI(0, groundMotionState, groundShape, btVector3(0, 0, 0));
-        btRigidBody* groundRigidBody = new btRigidBody(groundRigidBodyCI);
-        dynamicsWorld->addRigidBody(groundRigidBody);
-
-
-        btDefaultMotionState* fallMotionState =
-                new btDefaultMotionState(btTransform(btQuaternion(0, 0, 0, 1), btVector3(0, 50, 0)));
-        btScalar mass = 1;
-        btVector3 fallInertia(0, 0, 0);
-        fallShape->calculateLocalInertia(mass, fallInertia);
-        btRigidBody::btRigidBodyConstructionInfo fallRigidBodyCI(mass, fallMotionState, fallShape, fallInertia);
-        btRigidBody* fallRigidBody = new btRigidBody(fallRigidBodyCI);
-        dynamicsWorld->addRigidBody(fallRigidBody);
-
-        const uint64_t programDuration = 10U; // Simulate for 10 sec.
-        std::chrono::system_clock::time_point lastCallTime;
-        for( uint64_t frame = 0; frame < programDuration * FRAMERATE; frame += 1 ) {
-
-                auto startTime = std::chrono::system_clock::now();
-
-                float_t         timePassedSinceLastCall;
-                const btScalar  maxTimeSteps( 10 );
-
-                if( frame == 0 ) {
-                        timePassedSinceLastCall = 1. / FRAMERATE;
-                } else {
-                        auto deltaTime =
-                                std::chrono::duration_cast< std::chrono::milliseconds >( startTime - lastCallTime );
-                        timePassedSinceLastCall = deltaTime.count() / 1000. ;
-                }
-
-                lastCallTime = std::chrono::system_clock::now();
-
-                dynamicsWorld->stepSimulation( timePassedSinceLastCall,
-                                                maxTimeSteps,
-                                                FIXED_TIME_STEP );
-
-                btTransform trans;
-                fallRigidBody->getMotionState()->getWorldTransform( trans );
-
-                if( frame % 60U == 0 ) {
-                        std::cout << "Frame( " << frame << " )" << std::endl
-                                << "Sphere Position( " << trans.getOrigin().getX() << ", "
-                                                        << trans.getOrigin().getY() << ", "
-                                                        << trans.getOrigin().getZ() << " )" << std::endl << std::endl;
-                }
-
-                auto currentTime = std::chrono::system_clock::now();
-                auto goalTime   = startTime + std::chrono::milliseconds( (long long)( 1000 / FRAMERATE ) );
-                std::this_thread::sleep_for( std::chrono::duration_cast< std::chrono::milliseconds >( goalTime - currentTime) );
-        }
-
-        dynamicsWorld->removeRigidBody(fallRigidBody);
-        delete fallRigidBody->getMotionState();
-        delete fallRigidBody;
-
-        dynamicsWorld->removeRigidBody(groundRigidBody);
-        delete groundRigidBody->getMotionState();
-        delete groundRigidBody;
-
-
-        delete fallShape;
-
-        delete groundShape;
-
-
-        delete dynamicsWorld;
-        delete solver;
-        delete collisionConfiguration;
-        delete dispatcher;
-        delete broadphase;
-
-        return 0;
-}*/
