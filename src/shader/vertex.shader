@@ -1,14 +1,6 @@
 #version 330 core
 in vec3 in_position;
 in vec4 in_color;
-uniform mat4x4 in_mat;
-
-const mat4x4 scale = mat4x4 (
-    1/10.0, 0.0, 0.0, 0.0,
-    0.0, 1/10.0, 0.0, 0.0,
-    0.0, 0.0, 1/10.0, 0.0,
-    0.0, 0.0, 0.0, 1.0
-);
 
 out vec4 o_color;
 
