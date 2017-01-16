@@ -3,41 +3,20 @@
 #include "linmath.h"
 #include <stdlib.h>
 #include <iostream>
+#include <fstream>
 #include <cstdarg>
+#include <string>
 
-static const char* vertex_shader_text =
-        "#version 330 core                                      "
-        "in vec2 in_position;                                   "
-        "in vec4 in_color;                                      "
-        "out vec4 o_color;                                      "
-        "void main()                                            "
-        "{                                                      "
-        "       gl_Position = vec4( in_position, 0.0, 1.0 );    "
-        "       o_color = in_color;                             "
-        "}                                                      ";
-static const char* fragment_shader_text =
-        "#version 330 core                                      "
-        "in vec4 o_color;                                       "
-        "layout( location = 0 ) out vec4 o_fragColor;           "
-        "void main()                                            "
-        "{                                                      "
-        "       o_fragColor = vec4( o_color );                  "
-        "}                                                      ";
-static struct Vertex
-{
-        float x, y;
-        float r, g, b, a;
-} vertexes[] = {
-                0.0f, 0.5f, 1.f, 0.f, 0.f, 1.f,
-        -0.5f,-0.5f, 0.f, 1.f, 0.f, 1.f,
-                0.5f,-0.5f, 0.f, 0.f, 1.f, 1.f
-};
+#include "util.h"
+
+char* vertex_shader_text;
+char* fragment_shader_text;
 
 static void error_callback( int error, const char* description );
 static void key_callback( GLFWwindow* window,
         int key, int scancode, int action, int mods );
-static void resize_callback( GLFWwindow* window, int width, int height );
 
+void LoadShaderCode( char** out_shaderCode, unsigned int* out_length, const char* in_fileName );
 GLuint LoadShader( GLenum type, const char* shaderCode );
 GLuint LinkProgram( GLuint vertexShader, GLuint fragmentShader );
 
@@ -86,12 +65,16 @@ int main( void )
         }
         // Bind callbacks.
         glfwSetKeyCallback( window, key_callback );
-        glfwSetWindowSizeCallback( window, resize_callback );
         
         // This thread have a control over the window.
         glfwMakeContextCurrent( window );
         gladLoadGLLoader( (GLADloadproc) glfwGetProcAddress );
         glfwSwapInterval( 1 );
+
+        // Load shader code.
+        unsigned int vertexShaderCodeLength = 0U, fragmentShaderCodeLength = 0U;
+        LoadShaderCode( &vertex_shader_text, &vertexShaderCodeLength, "src/shader/vertex.shader" );
+        LoadShaderCode( &fragment_shader_text, &fragmentShaderCodeLength, "src/shader/fragment.shader" );
 
         // Shader compile.
         GLuint vertex_shader
@@ -117,23 +100,51 @@ int main( void )
         glGenVertexArrays( 1, VAOs );
         glBindVertexArray( VAOs[ 0 ] );
 
+        // Import mesh.
+        Mesh mesh;
+        const char* meshPath = "res/shape.obj";
+        if( FileLoadMesh( meshPath, &mesh ) == false ) {
+                std::cout << "Error: Parse error! " << meshPath << std::endl;
+        }
+        struct AVertex {
+                float x, y, z;
+                float r, g, b, a;
+        };
+        AVertex* verticies;
+        unsigned int index = 0U, size = 0U;
+        verticies = (AVertex*)malloc( sizeof(AVertex) * 3 * mesh.f.size() );
+        for( std::vector<Face>::iterator begin = mesh.f.begin(); begin != mesh.f.end(); begin += 1 ) {
+                Face face = *(begin);
+                for( unsigned int i = 0; i < 3U; i += 1U, index += 1U ) {
+                        verticies[ index ].x = mesh.v[ face.verticies[ i ].v - 1 ].x;
+                        verticies[ index ].y = mesh.v[ face.verticies[ i ].v - 1 ].y;
+                        verticies[ index ].z = mesh.v[ face.verticies[ i ].v - 1 ].z;
+                        verticies[ index ].r = mesh.vn[ face.verticies[ i ].vn - 1 ].x;
+                        verticies[ index ].g = mesh.vn[ face.verticies[ i ].vn - 1 ].y;
+                        verticies[ index ].b = mesh.vn[ face.verticies[ i ].vn - 1 ].z;
+                        verticies[ index ].a = 1.0f;
+                }
+        }
+
         // Create and bind VBO.
         glGenBuffers( 1, VBOs );
         glBindBuffer( GL_ARRAY_BUFFER, VBOs[ 0 ] );
-        glBufferData( GL_ARRAY_BUFFER, sizeof(vertexes), vertexes, GL_STATIC_DRAW );
+        glBufferData( GL_ARRAY_BUFFER,
+                sizeof(AVertex) * 3 * mesh.f.size(),
+                verticies,
+                GL_STATIC_DRAW );
 
         // Mapping VBO and attribute location of in_position.
-        glVertexAttribPointer( posLoc, 2, GL_FLOAT, GL_FALSE,
-                sizeof(Vertex), (GLvoid*) 0 );
+        glVertexAttribPointer( posLoc, 3, GL_FLOAT, GL_FALSE,
+                sizeof(AVertex), (GLvoid*) 0 );
         glEnableVertexAttribArray( posLoc );
 
         // Mapping VBO and attribute location of in_color.
         glVertexAttribPointer( colLoc, 4, GL_FLOAT, GL_FALSE,
-                sizeof(Vertex), (GLvoid*)( sizeof(GL_FLOAT) * 2 ) );
+                sizeof(AVertex), (GLvoid*)( sizeof(GL_FLOAT) * 3 ) );
         glEnableVertexAttribArray( colLoc );
 
-        // Detach VBO and VAO.
-        glBindBuffer( GL_ARRAY_BUFFER, NULL );
+        // Detach VAO.
         glBindVertexArray( NULL );
 
         // Run application.
@@ -142,19 +153,25 @@ int main( void )
                 glfwGetFramebufferSize( window, &width, &height );
                 glViewport( 0, 0, width, height );
                 glClearColor( CLEAR_COLOR );
-                glClear( GL_COLOR_BUFFER_BIT );
+                glEnable( GL_DEPTH_TEST );
+                glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
                 // Draw here.
                 //=============================================================
                 glBindVertexArray( VAOs[ 0 ] );
-                glDrawArrays( GL_TRIANGLES, 0, 3 );
+
+                glDrawArrays( GL_TRIANGLES, 0, 3 * mesh.f.size() );
+                
                 glBindVertexArray( NULL );
                 //=============================================================
+
                 glfwSwapBuffers( window );
                 glfwPollEvents();
         }
 
         // Destroy unuse objects.
+        glDeleteBuffers( 1, VBOs );
+        glDeleteVertexArrays( 1, VAOs );
         glDeleteShader( vertex_shader );
         glDeleteShader( fragment_shader );
         glDeleteProgram( program );
@@ -183,11 +200,22 @@ static void key_callback( GLFWwindow* window,
                         << "Warning: Not implemented." << std::endl;
 }
 
-static void resize_callback( GLFWwindow* window, int width, int height ) {
-        std::cout
-                << "Log: Resized " << width << "*" << height << std::endl;
-}
 
+void LoadShaderCode( char** out_shaderCode, unsigned int* out_length, const char* in_fileName ) {
+        if( FileExist( in_fileName ) == false ) {
+                std::cout
+                        << "Error: File not exist, " << in_fileName << std::endl;
+                return;
+        }
+        std::ifstream file( in_fileName );
+        std::string result, input;
+        while( std::getline( file, input ) ) {
+                result += input + "\n";
+        }
+        *out_length = result.length();
+        *out_shaderCode = (char*) malloc( sizeof(char) * ( *out_length + 1) );
+        std::strcpy( *out_shaderCode, result.c_str() );
+}
 
 GLuint LoadShader( GLenum type, const char* shaderCode ) {
         GLuint shader;
