@@ -89,20 +89,9 @@ int main( void )
         // Run program.
         glUseProgram( program );
 
-        // Dissolve attribute location.
-        GLuint posLoc = glGetAttribLocation( program, "in_position" );  // loc 0
-        GLuint colLoc = glGetAttribLocation( program, "in_color" );     // loc 1
-
-        GLuint VAOs[1];
-        GLuint VBOs[1];
-
-        // Create and bind VAO.
-        glGenVertexArrays( 1, VAOs );
-        glBindVertexArray( VAOs[ 0 ] );
-
         // Import mesh.
         Mesh mesh;
-        const char* meshPath = "res/shape.obj";
+        const char* meshPath = "res/teapot";
         if( FileLoadMesh( meshPath, &mesh ) == false ) {
                 std::cout << "Error: Parse error! " << meshPath << std::endl;
         }
@@ -119,20 +108,51 @@ int main( void )
                         verticies[ index ].x = mesh.v[ face.verticies[ i ].v - 1 ].x;
                         verticies[ index ].y = mesh.v[ face.verticies[ i ].v - 1 ].y;
                         verticies[ index ].z = mesh.v[ face.verticies[ i ].v - 1 ].z;
-                        verticies[ index ].r = mesh.vn[ face.verticies[ i ].vn - 1 ].x;
-                        verticies[ index ].g = mesh.vn[ face.verticies[ i ].vn - 1 ].y;
-                        verticies[ index ].b = mesh.vn[ face.verticies[ i ].vn - 1 ].z;
+                        verticies[ index ].r = mesh.vn[ face.verticies[ i ].vt - 1 ].x;
+                        verticies[ index ].g = mesh.vn[ face.verticies[ i ].vt - 1 ].y;
+                        verticies[ index ].b = mesh.vn[ face.verticies[ i ].vt - 1 ].z;
                         verticies[ index ].a = 1.0f;
                 }
         }
 
+        // Dissolve attribute location.
+        GLuint posLoc = glGetAttribLocation( program, "in_position" );  // loc 0
+        GLuint colLoc = glGetAttribLocation( program, "in_color" );     // loc 1
+        GLuint rotateLoc = glGetUniformLocation( program, "in_rotate" );// loc 2
+
+        GLuint VAOs[ 1 ];
+        GLuint VBOs[ 3 ];
+
+        // Create and bind VAO.
+        glGenVertexArrays( 1, VAOs );
+        glBindVertexArray( VAOs[ 0 ] );
+
         // Create and bind VBO.
-        glGenBuffers( 1, VBOs );
+        glGenBuffers( 3, VBOs );
         glBindBuffer( GL_ARRAY_BUFFER, VBOs[ 0 ] );
         glBufferData( GL_ARRAY_BUFFER,
                 sizeof(AVertex) * 3 * mesh.f.size(),
                 verticies,
                 GL_STATIC_DRAW );
+
+        // Bind multiple uniform buffers.
+        const float prefixColor[ 2 ] = { 1.f, 0.f },
+                suffixColor[ 2 ] = { 1.f, 1.f };
+        GLuint prefixBindPoint = 1U,
+                suffixBindPoint = 2U;
+        GLuint prefixBlockLoc = glGetUniformBlockIndex( program, "ColorPrefix" ),
+                suffixBlockLoc = glGetUniformBlockIndex( program, "ColorSuffix" );
+        glUniformBlockBinding( program, prefixBlockLoc, prefixBindPoint );
+        glUniformBlockBinding( program, suffixBlockLoc, suffixBindPoint );
+
+        glBindBuffer( GL_UNIFORM_BUFFER, VBOs[ 1 ] );
+        glBufferData( GL_UNIFORM_BUFFER, sizeof(float) * 2, prefixColor, GL_STATIC_DRAW );
+        glBindBuffer( GL_UNIFORM_BUFFER, VBOs[ 2 ] );
+        glBufferData( GL_UNIFORM_BUFFER, sizeof(float) * 2, suffixColor, GL_STATIC_DRAW );
+        glBindBuffer( GL_UNIFORM_BUFFER, NULL );
+
+        glBindBufferBase( GL_UNIFORM_BUFFER, prefixBindPoint, VBOs[ 1 ] );
+        glBindBufferBase( GL_UNIFORM_BUFFER, suffixBindPoint, VBOs[ 2 ] );
 
         // Mapping VBO and attribute location of in_position.
         glVertexAttribPointer( posLoc, 3, GL_FLOAT, GL_FALSE,
@@ -159,6 +179,11 @@ int main( void )
                 // Draw here.
                 //=============================================================
                 glBindVertexArray( VAOs[ 0 ] );
+
+                mat4x4 rotate;
+                mat4x4_identity( rotate );
+                mat4x4_rotate_Y( rotate, rotate, (float) glfwGetTime() );
+                glUniformMatrix4fv( rotateLoc, 1, GL_FALSE, (const GLfloat*) rotate );
 
                 glDrawArrays( GL_TRIANGLES, 0, 3 * mesh.f.size() );
                 
