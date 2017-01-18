@@ -55,6 +55,7 @@ int main( void )
 
         // Create window.
         // GLFWwindow object encapsulates both a window and a context.
+        // TODO: Research how a context is managed.
         GLFWwindow* window = glfwCreateWindow(
                                 WINDOW_WIDTH, WINDOW_HEIGHT,
                                 WINDOW_TITLE,
@@ -85,6 +86,7 @@ int main( void )
         LoadShaderCode( &fragment_shader_text, &fragmentShaderCodeLength, "src/shader/fragment.shader" );
 
         // Shader compile.
+        // TODO: Research how a shader object is managed.
         GLuint vertex_shader
                 = LoadShader( GL_VERTEX_SHADER, vertex_shader_text );
         GLuint fragment_shader
@@ -92,6 +94,7 @@ int main( void )
 
         // Program link.
         // openGL ES 3.0 require one and only one vertex and fragment shader.
+        // TODO: Research how a program object is managed.
         GLuint program = LinkProgram( vertex_shader, fragment_shader );
 
         // Run program.
@@ -103,18 +106,20 @@ int main( void )
         if( FileLoadMesh( meshPath, &mesh ) == false ) {
                 std::cout << "Error: Parse error! " << meshPath << std::endl;
         }
+
+        // Convert struct Mesh to struct AVertex and AColor.
         struct AVertex {
                 float x, y, z;
+        } *verticies;
+        struct AColor {
                 float r, g, b, a;
-        };
-        AVertex* verticies;
+        } *colors;
         unsigned int index = 0U, size = 0U;
         verticies = (AVertex*)malloc( sizeof(AVertex) * mesh.v.size() );
+        colors = (AColor*)malloc( sizeof(AColor)* mesh.v.size() );
         for( unsigned int index = 0U; index < mesh.v.size(); index += 1U ) {
-                verticies[ index ].x = mesh.v[ index ].x;
-                verticies[ index ].y = mesh.v[ index ].y;
-                verticies[ index ].z = mesh.v[ index ].z;
-                verticies[ index ].r = verticies[ index ].g = verticies[ index ].b = verticies[ index ].a = 1.0f;
+                verticies[ index ] = *reinterpret_cast<AVertex*>( &mesh.v[ index ] );
+                colors[ index ].r = colors[ index ].g = colors[ index ].b = colors[ index ].a = 1.f;
         }
 
         // Dissolve attribute location.
@@ -123,30 +128,45 @@ int main( void )
         GLuint rotateLoc = glGetUniformLocation( program, "in_rotate" );// loc 2
 
         GLuint VAOs[ 1 ];
-        GLuint VBOs[ 4 ];
+        GLuint VBOs[ 5 ];
+        GLuint VBOvertexPosition, VBOvertexColor, VBOelementArray,
+                VBOuniformBlockPrefix, VBOuniformBlockSuffix;
 
-        // Create and bind VAO.
+        // Create and bind the vertex array object.
         glGenVertexArrays( 1, VAOs );
         glBindVertexArray( VAOs[ 0 ] );
 
-        // Create and bind VBO.
-        glGenBuffers( 4, VBOs );
-        glBindBuffer( GL_ARRAY_BUFFER, VBOs[ 0 ] );
+        // Create four vertex buffer objects.
+        glGenBuffers( 5, VBOs );
+        VBOvertexPosition       = VBOs[ 0 ];
+        VBOvertexColor          = VBOs[ 1 ];
+        VBOelementArray         = VBOs[ 2 ];
+        VBOuniformBlockPrefix   = VBOs[ 3 ];
+        VBOuniformBlockSuffix   = VBOs[ 4 ];
+
+        // Use vertex buffer objects as GL_ARRAY_BUFFER for a position.
+        glBindBuffer( GL_ARRAY_BUFFER, VBOvertexPosition );
         glBufferData( GL_ARRAY_BUFFER,
                 sizeof(AVertex) * mesh.v.size(),
                 verticies,
                 GL_STATIC_DRAW );
-
         // Mapping VBO and attribute location of in_position.
         glVertexAttribPointer( posLoc, 3, GL_FLOAT, GL_FALSE,
                 sizeof(AVertex), (GLvoid*) 0 );
         glEnableVertexAttribArray( posLoc );
 
+        // Use vertex buffer objects as GL_ARRAY_BUFFER for a color.
+        glBindBuffer( GL_ARRAY_BUFFER, VBOvertexColor );
+        glBufferData( GL_ARRAY_BUFFER,
+                sizeof(AColor) * mesh.v.size(),
+                colors,
+                GL_STATIC_DRAW );
         // Mapping VBO and attribute location of in_color.
         glVertexAttribPointer( colLoc, 4, GL_FLOAT, GL_FALSE,
-                sizeof(AVertex), (GLvoid*)( sizeof(GL_FLOAT) * 3 ) );
+                sizeof(AColor), (GLvoid*) 0 );
         glEnableVertexAttribArray( colLoc );
 
+        // Bind buffer to NULL is ignored, but just call it.
         glBindBuffer( GL_ARRAY_BUFFER, NULL );
 
         // Bind multiple uniform buffers.
@@ -159,14 +179,16 @@ int main( void )
         glUniformBlockBinding( program, prefixBlockLoc, prefixBindPoint );
         glUniformBlockBinding( program, suffixBlockLoc, suffixBindPoint );
 
-        glBindBuffer( GL_UNIFORM_BUFFER, VBOs[ 1 ] );
-        glBufferData( GL_UNIFORM_BUFFER, sizeof(float) * 2, prefixColor, GL_STATIC_DRAW );
-        glBindBuffer( GL_UNIFORM_BUFFER, VBOs[ 2 ] );
-        glBufferData( GL_UNIFORM_BUFFER, sizeof(float) * 2, suffixColor, GL_STATIC_DRAW );
+        glBindBuffer( GL_UNIFORM_BUFFER, VBOuniformBlockPrefix );
+        glBufferData( GL_UNIFORM_BUFFER, sizeof(GLfloat) * 2, prefixColor, GL_STATIC_DRAW );
+        glBindBuffer( GL_UNIFORM_BUFFER, VBOuniformBlockSuffix );
+        glBufferData( GL_UNIFORM_BUFFER, sizeof(GLfloat) * 2, suffixColor, GL_STATIC_DRAW );
+
+        // Bind buffer to NULL is ignored, but just call it.
         glBindBuffer( GL_UNIFORM_BUFFER, NULL );
 
-        glBindBufferBase( GL_UNIFORM_BUFFER, prefixBindPoint, VBOs[ 1 ] );
-        glBindBufferBase( GL_UNIFORM_BUFFER, suffixBindPoint, VBOs[ 2 ] );
+        glBindBufferBase( GL_UNIFORM_BUFFER, prefixBindPoint, VBOuniformBlockPrefix );
+        glBindBufferBase( GL_UNIFORM_BUFFER, suffixBindPoint, VBOuniformBlockSuffix );
 
         // Bind index buffer;
         struct AIndex {
@@ -178,8 +200,11 @@ int main( void )
                 indicies[ index ].b = mesh.f[ index ].verticies[ 1 ].v - 1;
                 indicies[ index ].c = mesh.f[ index ].verticies[ 2 ].v - 1;
         }
-        glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, VBOs[ 3 ] );
-        glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(AIndex) * mesh.f.size(), indicies, GL_STATIC_DRAW );
+        glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, VBOelementArray );
+        glBufferData( GL_ELEMENT_ARRAY_BUFFER,
+                sizeof(AIndex) * mesh.f.size(),
+                indicies,
+                GL_STATIC_DRAW );
 
         // Detach VAO.
         glBindVertexArray( NULL );
@@ -204,7 +229,7 @@ int main( void )
 
                 glDrawElements( GL_TRIANGLES, 3 * mesh.f.size(), GL_UNSIGNED_INT, 0 );
                 
-                glBindVertexArray( NULL );
+                //glBindVertexArray( NULL );
                 //=============================================================
 
                 glfwSwapBuffers( window );
