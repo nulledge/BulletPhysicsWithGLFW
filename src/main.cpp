@@ -20,7 +20,7 @@ void LoadShaderCode( char** out_shaderCode, unsigned int* out_length, const char
 GLuint LoadShader( GLenum type, const char* shaderCode );
 GLuint LinkProgram( GLuint vertexShader, GLuint fragmentShader );
 
-#define CLEAR_COLOR     1.f, 1.f, 1.f, 1.f
+#define CLEAR_COLOR     0.f, 1.f, 0.f, 1.f
 
 int main( void )
 {
@@ -54,6 +54,7 @@ int main( void )
         glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
 
         // Create window.
+        // GLFWwindow object encapsulates both a window and a context.
         GLFWwindow* window = glfwCreateWindow(
                                 WINDOW_WIDTH, WINDOW_HEIGHT,
                                 WINDOW_TITLE,
@@ -63,12 +64,19 @@ int main( void )
                 glfwTerminate();
                 exit( EXIT_FAILURE );
         }
-        // Bind callbacks.
+        // Bind key callbacks.
         glfwSetKeyCallback( window, key_callback );
         
-        // This thread have a control over the window.
+        // This thread have a control over the context.
         glfwMakeContextCurrent( window );
+        // Load pointers to openGL and its extension functions at runtime.
+        // It is required above openGL 1.2.
         gladLoadGLLoader( (GLADloadproc) glfwGetProcAddress );
+        // glfw supports a double-buffering.
+        // A swap interval restricts buffer-swap. Even if the back-buffer is
+        // filled and the graphic device is ready to swap buffer, do not swap
+        // buffer immediately. A buffer-swap occures after the graphic device
+        // draw all fragments from the front-buffer.
         glfwSwapInterval( 1 );
 
         // Load shader code.
@@ -101,18 +109,12 @@ int main( void )
         };
         AVertex* verticies;
         unsigned int index = 0U, size = 0U;
-        verticies = (AVertex*)malloc( sizeof(AVertex) * 3 * mesh.f.size() );
-        for( std::vector<Face>::iterator begin = mesh.f.begin(); begin != mesh.f.end(); begin += 1 ) {
-                Face face = *(begin);
-                for( unsigned int i = 0; i < 3U; i += 1U, index += 1U ) {
-                        verticies[ index ].x = mesh.v[ face.verticies[ i ].v - 1 ].x;
-                        verticies[ index ].y = mesh.v[ face.verticies[ i ].v - 1 ].y;
-                        verticies[ index ].z = mesh.v[ face.verticies[ i ].v - 1 ].z;
-                        verticies[ index ].r = mesh.vn[ face.verticies[ i ].vt - 1 ].x;
-                        verticies[ index ].g = mesh.vn[ face.verticies[ i ].vt - 1 ].y;
-                        verticies[ index ].b = mesh.vn[ face.verticies[ i ].vt - 1 ].z;
-                        verticies[ index ].a = 1.0f;
-                }
+        verticies = (AVertex*)malloc( sizeof(AVertex) * mesh.v.size() );
+        for( unsigned int index = 0U; index < mesh.v.size(); index += 1U ) {
+                verticies[ index ].x = mesh.v[ index ].x;
+                verticies[ index ].y = mesh.v[ index ].y;
+                verticies[ index ].z = mesh.v[ index ].z;
+                verticies[ index ].r = verticies[ index ].g = verticies[ index ].b = verticies[ index ].a = 1.0f;
         }
 
         // Dissolve attribute location.
@@ -121,22 +123,34 @@ int main( void )
         GLuint rotateLoc = glGetUniformLocation( program, "in_rotate" );// loc 2
 
         GLuint VAOs[ 1 ];
-        GLuint VBOs[ 3 ];
+        GLuint VBOs[ 4 ];
 
         // Create and bind VAO.
         glGenVertexArrays( 1, VAOs );
         glBindVertexArray( VAOs[ 0 ] );
 
         // Create and bind VBO.
-        glGenBuffers( 3, VBOs );
+        glGenBuffers( 4, VBOs );
         glBindBuffer( GL_ARRAY_BUFFER, VBOs[ 0 ] );
         glBufferData( GL_ARRAY_BUFFER,
-                sizeof(AVertex) * 3 * mesh.f.size(),
+                sizeof(AVertex) * mesh.v.size(),
                 verticies,
                 GL_STATIC_DRAW );
 
+        // Mapping VBO and attribute location of in_position.
+        glVertexAttribPointer( posLoc, 3, GL_FLOAT, GL_FALSE,
+                sizeof(AVertex), (GLvoid*) 0 );
+        glEnableVertexAttribArray( posLoc );
+
+        // Mapping VBO and attribute location of in_color.
+        glVertexAttribPointer( colLoc, 4, GL_FLOAT, GL_FALSE,
+                sizeof(AVertex), (GLvoid*)( sizeof(GL_FLOAT) * 3 ) );
+        glEnableVertexAttribArray( colLoc );
+
+        glBindBuffer( GL_ARRAY_BUFFER, NULL );
+
         // Bind multiple uniform buffers.
-        const float prefixColor[ 2 ] = { 1.f, 0.f },
+        const float prefixColor[ 2 ] = { 1.f, 1.f },
                 suffixColor[ 2 ] = { 1.f, 1.f };
         GLuint prefixBindPoint = 1U,
                 suffixBindPoint = 2U;
@@ -154,15 +168,18 @@ int main( void )
         glBindBufferBase( GL_UNIFORM_BUFFER, prefixBindPoint, VBOs[ 1 ] );
         glBindBufferBase( GL_UNIFORM_BUFFER, suffixBindPoint, VBOs[ 2 ] );
 
-        // Mapping VBO and attribute location of in_position.
-        glVertexAttribPointer( posLoc, 3, GL_FLOAT, GL_FALSE,
-                sizeof(AVertex), (GLvoid*) 0 );
-        glEnableVertexAttribArray( posLoc );
-
-        // Mapping VBO and attribute location of in_color.
-        glVertexAttribPointer( colLoc, 4, GL_FLOAT, GL_FALSE,
-                sizeof(AVertex), (GLvoid*)( sizeof(GL_FLOAT) * 3 ) );
-        glEnableVertexAttribArray( colLoc );
+        // Bind index buffer;
+        struct AIndex {
+                unsigned int a, b, c;
+        } *indicies ;
+        indicies = (AIndex*)malloc( sizeof(AIndex) * mesh.f.size() );
+        for( unsigned int index = 0U; index < mesh.f.size(); index += 1U ) {
+                indicies[ index ].a = mesh.f[ index ].verticies[ 0 ].v - 1;
+                indicies[ index ].b = mesh.f[ index ].verticies[ 1 ].v - 1;
+                indicies[ index ].c = mesh.f[ index ].verticies[ 2 ].v - 1;
+        }
+        glBindBuffer( GL_ELEMENT_ARRAY_BUFFER, VBOs[ 3 ] );
+        glBufferData( GL_ELEMENT_ARRAY_BUFFER, sizeof(AIndex) * mesh.f.size(), indicies, GL_STATIC_DRAW );
 
         // Detach VAO.
         glBindVertexArray( NULL );
@@ -185,7 +202,7 @@ int main( void )
                 mat4x4_rotate_Y( rotate, rotate, (float) glfwGetTime() );
                 glUniformMatrix4fv( rotateLoc, 1, GL_FALSE, (const GLfloat*) rotate );
 
-                glDrawArrays( GL_TRIANGLES, 0, 3 * mesh.f.size() );
+                glDrawElements( GL_TRIANGLES, 3 * mesh.f.size(), GL_UNSIGNED_INT, 0 );
                 
                 glBindVertexArray( NULL );
                 //=============================================================
