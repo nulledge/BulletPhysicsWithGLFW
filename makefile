@@ -34,11 +34,6 @@ GLAD_SRC_PATH=$(GLAD)
 GLAD_INC_PATH=$(GLAD)
 
 
-LINMATH=$(GLFW)/deps
-
-LINMATH_INC_PATH=$(LINMATH)
-
-
 GLM=glm
 
 GLM_INC_PATH=$(GLM)
@@ -52,7 +47,7 @@ final : $(OBJ_PATH)/main.o $(OBJ_PATH)/glad.o $(OBJ_PATH)/config.o $(OBJ_PATH)/a
 	$(CPPC) $(OBJ_PATH)/main.o $(OBJ_PATH)/glad.o $(OBJ_PATH)/config.o $(OBJ_PATH)/app.o -o $(BIN_PATH)/$(OUTPUT) $(BULLET_PHYSICS_DEPENDENCY) $(GLFW_DEPENDENCY)
 
 $(OBJ_PATH)/main.o : $(SRC_PATH)/main.cpp $(SRC_PATH)/UTIL.h $(GLM)/glm/glm.hpp $(OBJ_PATH)
-	$(CPPC) -c $(SRC_PATH)/main.cpp -o $(OBJ_PATH)/main.o -I$(BULLET_INC_PATH) -I$(GLFW_INC_PATH) -I$(GLAD_INC_PATH) -I$(LINMATH_INC_PATH) -I$(SRC_PATH) -I$(GLM_INC_PATH)
+	$(CPPC) -c $(SRC_PATH)/main.cpp -o $(OBJ_PATH)/main.o -I$(BULLET_INC_PATH) -I$(GLFW_INC_PATH) -I$(GLAD_INC_PATH) -I$(SRC_PATH) -I$(GLM_INC_PATH)
 
 $(OBJ_PATH)/app.o : $(SRC_PATH)/Application/Application.hpp $(SRC_PATH)/Application/Application.cpp $(OBJ_PATH)
 	$(CPPC) -c $(SRC_PATH)/Application/Application.cpp -o $(OBJ_PATH)/app.o -I$(GLFW_INC_PATH) -I$(SRC_PATH)

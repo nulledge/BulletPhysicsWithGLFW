@@ -1,6 +1,5 @@
 #include "glad/glad.h"
 #include <GLFW/glfw3.h>
-#include "linmath.h"
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
@@ -30,27 +29,28 @@ GLuint LinkProgram( GLuint vertexShader, GLuint fragmentShader );
 
 int main( void )
 {
-        // Set default error-callback.
+        App::Application* app = App::Application::getInstance();
+
+        /* Set default error-callback. */
         glfwSetErrorCallback( error_callback );
 
-        // Initialize glfw.
-        // IF SUCCESS, YOU MUST CALL glfwTerminate() BEFORE EXIT.
-        if( glfwInit() == GLFW_FALSE )
-                exit( EXIT_FAILURE ); // Initialize failed.
-
-        // Client use openGL, neither openGL ES nor Vulkan.
-        glfwWindowHint( GLFW_CLIENT_API, GLFW_OPENGL_API );
-        // mac OS supports openGL API version 3.2 and above.
-        // Specify client API version as 3.2.
-        // However GLFW_CONTEXT_VERSION_MAJOR and GLFW_CONTEXT_VERSION_MINOR are
-        // not hard contraints, API version above 3.2 could be selected.
-        // A creation will fail if version below 3.2 is selected.
-        glfwWindowHint( GLFW_CONTEXT_VERSION_MAJOR, 3 );
-        glfwWindowHint( GLFW_CONTEXT_VERSION_MINOR, 2 );
-        // mas OS supports ONLY forward-compatible core profile context
-        // for API version 3.2 and above.
-        glfwWindowHint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE );
-        glfwWindowHint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
+        /* Client use openGL, neither openGL ES nor Vulkan. */
+        app->hint( GLFW_CLIENT_API, GLFW_OPENGL_API )
+        /*
+        mac OS supports openGL API version 3.2 and above.
+        Specify client API version as 3.2.
+        However GLFW_CONTEXT_VERSION_MAJOR and GLFW_CONTEXT_VERSION_MINOR are
+        not hard contraints, API version above 3.2 could be selected.
+        A creation will fail if version below 3.2 is selected.
+        */
+                ->hint( GLFW_CONTEXT_VERSION_MAJOR, 3 )
+                ->hint( GLFW_CONTEXT_VERSION_MINOR, 2 )
+        /*
+        mas OS supports ONLY forward-compatible core profile context
+        for API version 3.2 and above.
+        */
+                ->hint( GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE )
+                ->hint( GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE );
 
         // Create window.
         // GLFWwindow object encapsulates both a window and a context.
@@ -58,8 +58,8 @@ int main( void )
         // commands pass. It also includes states used for OpenGL. A Context is
         // required to call OpenGL APIs.
         GLFWwindow* window = glfwCreateWindow(
-                config.getWidth(), config.getHeight(),
-                config.getTitle(),
+                App::DEFAULT_CONFIG.getWidth(), App::DEFAULT_CONFIG.getHeight(),
+                App::DEFAULT_CONFIG.getTitle(),
                 NULL, NULL );
         if( window == NULL) { // Create failed.
                 glfwTerminate();
@@ -241,7 +241,7 @@ int main( void )
                 glm::mat4 MVP = Projection * View * Model;
                 glUniformMatrix4fv( mvpLoc, 1, GL_FALSE, glm::value_ptr(MVP) );
 
-                //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+                glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
                 glDrawElements( GL_TRIANGLES, 3 * mesh.f.size(), GL_UNSIGNED_INT, 0 );
                 glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
                 
@@ -262,8 +262,8 @@ int main( void )
         glDeleteProgram( program );
 
         glfwDestroyWindow(window);
-        glfwTerminate();
-        exit( EXIT_SUCCESS );
+
+        delete app;
 }
 
 
