@@ -6,6 +6,7 @@
 #include <fstream>
 #include <cstdarg>
 #include <string>
+#include <cmath>
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
@@ -24,7 +25,7 @@ void LoadShaderCode( char** out_shaderCode, unsigned int* out_length, const char
 GLuint LoadShader( GLenum type, const char* shaderCode );
 GLuint LinkProgram( GLuint vertexShader, GLuint fragmentShader );
 
-#define CLEAR_COLOR     0.f, 1.f, 0.f, 1.f
+#define CLEAR_COLOR     0.f, 0.f, 0.f, 1.f
 
 int main( void )
 {
@@ -107,7 +108,7 @@ int main( void )
 
         // Import mesh.
         Mesh mesh;
-        const char* meshPath = "res/cube";
+        const char* meshPath = "res/pumpkin";
         if( FileLoadMesh( meshPath, &mesh ) == false ) {
                 std::cout << "Error: Parse error! " << meshPath << std::endl;
         }
@@ -124,7 +125,10 @@ int main( void )
         colors = (AColor*)malloc( sizeof(AColor)* mesh.v.size() );
         for( unsigned int index = 0U; index < mesh.v.size(); index += 1U ) {
                 verticies[ index ] = *reinterpret_cast<AVertex*>( &mesh.v[ index ] );
-                colors[ index ].r = colors[ index ].g = colors[ index ].b = colors[ index ].a = 1.f;
+                colors[ index ].r = std::abs( mesh.v[ index ].x ) / 50.f;
+                colors[ index ].g = std::abs( mesh.v[ index ].y ) / 50.f;
+                colors[ index ].b = (std::abs( mesh.v[ index ].z ) - 100.f) / 50.f;
+                colors[ index ].a = 1.f;
         }
 
         // Dissolve attribute location.
@@ -221,37 +225,38 @@ int main( void )
                 glViewport( 0, 0, width, height );
                 glClearColor( CLEAR_COLOR );
                 glEnable( GL_DEPTH_TEST );
+                glEnable( GL_CULL_FACE );
+                glCullFace( GL_BACK );
                 glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
                 // Draw here.
                 //=============================================================
                 glBindVertexArray( VAOs[ 0 ] );
 
-                glm::vec3 rotate = glm::vec3( (float) glfwGetTime(), 0, 0 );
-                glm::vec3 Translate = glm::vec3( 0, 0, -15 );
-
                 glm::mat4 Projection = 
-                        glm::perspective( 45.0f, 4.0f / 3.0f, 0.1f, 100.f );
-                glm::mat4 ViewTranslate = glm::translate(
-                        glm::mat4(1.0f),
-                        Translate );
-                glm::mat4 ViewRotateX = glm::rotate(
-                        ViewTranslate,
-                        rotate.y, glm::vec3(-1.0f, 0.0f, 0.0f) );
-                glm::mat4 View = glm::rotate(
-                        ViewRotateX,
-                        rotate.x, glm::vec3(0.0f, 1.0f, 0.0f) );
-                glm::mat4 Model = glm::scale(
-                        glm::mat4(1.0f),
-                        glm::vec3(0.5f) );
+                        glm::perspectiveFov( 45.0f, (float)width, (float)height, 0.1f, 100.f );
+                glm::mat4 View = glm::lookAt(
+                        glm::vec3( 0.f, 65.f, 30.f),    // camera center
+                        glm::vec3( 0.f, 50.f, 0.f ),     // camera look at
+                        glm::vec3( 0.f, 1.f, 0.f ) );   // camera up vector
+                glm::mat4 Model =
+                        glm::translate( glm::mat4( 1.f ), glm::vec3( 0.f, 50.f, 0.f ) )
+                        * glm::rotate( glm::mat4( 1.f ), 3.14f / 180.f * (float)glfwGetTime()*50, glm::vec3( 0.f, 1.f, 0.f ) )
+                        * glm::rotate( glm::mat4( 1.f ), 3.14f / 180.f * (-90.f), glm::vec3( 1.f, 0.f, 0.f ) )
+                        * glm::scale( glm::mat4( 1.f ), glm::vec3( 0.2f, 0.2f, 0.2f ) )
+                        * glm::translate( glm::mat4( 1.f ), glm::vec3( 0.f, 0.f, 100.f ) );
                 glm::mat4 MVP = Projection * View * Model;
                 glUniformMatrix4fv( mvpLoc, 1, GL_FALSE, glm::value_ptr(MVP) );
 
+                //glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
                 glDrawElements( GL_TRIANGLES, 3 * mesh.f.size(), GL_UNSIGNED_INT, 0 );
+                glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
                 
                 glBindVertexArray( NULL );
                 //=============================================================
 
+                glDisable( GL_CULL_FACE );
+                glDisable( GL_DEPTH_TEST );
                 glfwSwapBuffers( window );
                 glfwPollEvents();
         }
