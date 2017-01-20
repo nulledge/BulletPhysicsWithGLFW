@@ -7,6 +7,10 @@
 #include <cstdarg>
 #include <string>
 
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+
 #include "util.h"
 
 char* vertex_shader_text;
@@ -55,7 +59,9 @@ int main( void )
 
         // Create window.
         // GLFWwindow object encapsulates both a window and a context.
-        // TODO: Research how a context is managed.
+        // OpenGL rendering context(a.k.a. context) is a port all OpenGL
+        // commands pass. It also includes states used for OpenGL. A Context is
+        // required to call OpenGL APIs.
         GLFWwindow* window = glfwCreateWindow(
                                 WINDOW_WIDTH, WINDOW_HEIGHT,
                                 WINDOW_TITLE,
@@ -68,7 +74,8 @@ int main( void )
         // Bind key callbacks.
         glfwSetKeyCallback( window, key_callback );
         
-        // This thread have a control over the context.
+        // This thread have a control over the context. Only one context can be
+        // current for a thread.
         glfwMakeContextCurrent( window );
         // Load pointers to openGL and its extension functions at runtime.
         // It is required above openGL 1.2.
@@ -86,7 +93,6 @@ int main( void )
         LoadShaderCode( &fragment_shader_text, &fragmentShaderCodeLength, "src/shader/fragment.shader" );
 
         // Shader compile.
-        // TODO: Research how a shader object is managed.
         GLuint vertex_shader
                 = LoadShader( GL_VERTEX_SHADER, vertex_shader_text );
         GLuint fragment_shader
@@ -94,7 +100,6 @@ int main( void )
 
         // Program link.
         // openGL ES 3.0 require one and only one vertex and fragment shader.
-        // TODO: Research how a program object is managed.
         GLuint program = LinkProgram( vertex_shader, fragment_shader );
 
         // Run program.
@@ -102,7 +107,7 @@ int main( void )
 
         // Import mesh.
         Mesh mesh;
-        const char* meshPath = "res/teapot";
+        const char* meshPath = "res/cube";
         if( FileLoadMesh( meshPath, &mesh ) == false ) {
                 std::cout << "Error: Parse error! " << meshPath << std::endl;
         }
@@ -125,7 +130,7 @@ int main( void )
         // Dissolve attribute location.
         GLuint posLoc = glGetAttribLocation( program, "in_position" );  // loc 0
         GLuint colLoc = glGetAttribLocation( program, "in_color" );     // loc 1
-        GLuint rotateLoc = glGetUniformLocation( program, "in_rotate" );// loc 2
+        GLuint mvpLoc = glGetUniformLocation( program, "in_mvp" );// loc 2
 
         GLuint VAOs[ 1 ];
         GLuint VBOs[ 5 ];
@@ -170,10 +175,10 @@ int main( void )
         glBindBuffer( GL_ARRAY_BUFFER, NULL );
 
         // Bind multiple uniform buffers.
-        const float prefixColor[ 2 ] = { 1.f, 1.f },
-                suffixColor[ 2 ] = { 1.f, 1.f };
-        GLuint prefixBindPoint = 1U,
-                suffixBindPoint = 2U;
+        const float prefixColor[ 2 ] = { 1.f, 1.f },    // r, g
+                suffixColor[ 2 ] = { 1.f, 1.f };        // b, a
+        GLuint prefixBindPoint = 1U,    // Allocate binding point 1.
+                suffixBindPoint = 2U;   // Allocate binding point 2.
         GLuint prefixBlockLoc = glGetUniformBlockIndex( program, "ColorPrefix" ),
                 suffixBlockLoc = glGetUniformBlockIndex( program, "ColorSuffix" );
         glUniformBlockBinding( program, prefixBlockLoc, prefixBindPoint );
@@ -222,14 +227,29 @@ int main( void )
                 //=============================================================
                 glBindVertexArray( VAOs[ 0 ] );
 
-                mat4x4 rotate;
-                mat4x4_identity( rotate );
-                mat4x4_rotate_Y( rotate, rotate, (float) glfwGetTime() );
-                glUniformMatrix4fv( rotateLoc, 1, GL_FALSE, (const GLfloat*) rotate );
+                glm::vec3 rotate = glm::vec3( (float) glfwGetTime(), 0, 0 );
+                glm::vec3 Translate = glm::vec3( 0, 0, -15 );
+
+                glm::mat4 Projection = 
+                        glm::perspective( 45.0f, 4.0f / 3.0f, 0.1f, 100.f );
+                glm::mat4 ViewTranslate = glm::translate(
+                        glm::mat4(1.0f),
+                        Translate );
+                glm::mat4 ViewRotateX = glm::rotate(
+                        ViewTranslate,
+                        rotate.y, glm::vec3(-1.0f, 0.0f, 0.0f) );
+                glm::mat4 View = glm::rotate(
+                        ViewRotateX,
+                        rotate.x, glm::vec3(0.0f, 1.0f, 0.0f) );
+                glm::mat4 Model = glm::scale(
+                        glm::mat4(1.0f),
+                        glm::vec3(0.5f) );
+                glm::mat4 MVP = Projection * View * Model;
+                glUniformMatrix4fv( mvpLoc, 1, GL_FALSE, glm::value_ptr(MVP) );
 
                 glDrawElements( GL_TRIANGLES, 3 * mesh.f.size(), GL_UNSIGNED_INT, 0 );
                 
-                //glBindVertexArray( NULL );
+                glBindVertexArray( NULL );
                 //=============================================================
 
                 glfwSwapBuffers( window );
