@@ -12,6 +12,7 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
+#include "Application/Application.hpp"
 #include "util.h"
 
 char* vertex_shader_text;
@@ -29,13 +30,6 @@ GLuint LinkProgram( GLuint vertexShader, GLuint fragmentShader );
 
 int main( void )
 {
-        // Default window config.
-        const GLuint    WINDOW_WIDTH    = 640U;
-        const GLuint    WINDOW_HEIGHT   = 480U;
-        const char*     WINDOW_TITLE    = "untitled";
-        GLFWmonitor*    FULLSCREEN      = NULL;
-        GLFWwindow*     SHARE_CONTEXT   = NULL;
-
         // Set default error-callback.
         glfwSetErrorCallback( error_callback );
 
@@ -64,10 +58,9 @@ int main( void )
         // commands pass. It also includes states used for OpenGL. A Context is
         // required to call OpenGL APIs.
         GLFWwindow* window = glfwCreateWindow(
-                                WINDOW_WIDTH, WINDOW_HEIGHT,
-                                WINDOW_TITLE,
-                                FULLSCREEN, SHARE_CONTEXT
-                                );
+                config.getWidth(), config.getHeight(),
+                config.getTitle(),
+                NULL, NULL );
         if( window == NULL) { // Create failed.
                 glfwTerminate();
                 exit( EXIT_FAILURE );
@@ -234,15 +227,15 @@ int main( void )
                 glBindVertexArray( VAOs[ 0 ] );
 
                 glm::mat4 Projection = 
-                        glm::perspectiveFov( 45.0f, (float)width, (float)height, 0.1f, 100.f );
+                        glm::perspectiveFov( glm::radians( 45.0f ), (float)width, (float)height, 0.1f, 100.f );
                 glm::mat4 View = glm::lookAt(
                         glm::vec3( 0.f, 65.f, 30.f),    // camera center
                         glm::vec3( 0.f, 50.f, 0.f ),     // camera look at
                         glm::vec3( 0.f, 1.f, 0.f ) );   // camera up vector
                 glm::mat4 Model =
                         glm::translate( glm::mat4( 1.f ), glm::vec3( 0.f, 50.f, 0.f ) )
-                        * glm::rotate( glm::mat4( 1.f ), 3.14f / 180.f * (float)glfwGetTime()*50, glm::vec3( 0.f, 1.f, 0.f ) )
-                        * glm::rotate( glm::mat4( 1.f ), 3.14f / 180.f * (-90.f), glm::vec3( 1.f, 0.f, 0.f ) )
+                        * glm::rotate( glm::mat4( 1.f ), (float)glm::radians( glfwGetTime()*50 ), glm::vec3( 0.f, 1.f, 0.f ) )
+                        * glm::rotate( glm::mat4( 1.f ), (float)glm::radians( -90.f), glm::vec3( 1.f, 0.f, 0.f ) )
                         * glm::scale( glm::mat4( 1.f ), glm::vec3( 0.2f, 0.2f, 0.2f ) )
                         * glm::translate( glm::mat4( 1.f ), glm::vec3( 0.f, 0.f, 100.f ) );
                 glm::mat4 MVP = Projection * View * Model;
