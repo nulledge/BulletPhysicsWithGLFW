@@ -1,4 +1,4 @@
-#include "Application/WindowConfig.hpp"
+#include "WindowConfig.hpp"
 
 #include <stdlib.h>
 #include <iostream>

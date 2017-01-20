@@ -11,7 +11,7 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
-#include "Application/Application.hpp"
+#include "Application.hpp"
 #include "util.h"
 
 char* vertex_shader_text;

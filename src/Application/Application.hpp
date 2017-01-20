@@ -3,10 +3,9 @@
 
 #include <GLFW/glfw3.h>
 #include <iostream>
-#include <stdlib.h>
 #include <string>
 
-#include "Application/WindowConfig.hpp"
+#include "WindowConfig.hpp"
 
 namespace App {
 
